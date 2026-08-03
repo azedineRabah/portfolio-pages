@@ -257,7 +257,7 @@
 })();
 
 /* =========================================================
-   BACK TO TOP + FOOTER YEAR
+   BACK TO TOP + FOOTER YEAR + CV DOWNLOAD
    ========================================================= */
 (function misc() {
   const yearEl = document.getElementById('year');
@@ -267,6 +267,24 @@
   if (backToTop) {
     backToTop.addEventListener('click', () => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
+  const resumeBtn = document.getElementById('resumeBtn');
+  if (resumeBtn) {
+    resumeBtn.addEventListener('click', (event) => {
+      const href = resumeBtn.getAttribute('href');
+      if (!href) return;
+
+      event.preventDefault();
+
+      const link = document.createElement('a');
+      link.href = href;
+      link.download = 'AZEDINE_RABAH_CV.pdf';
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     });
   }
 })();
