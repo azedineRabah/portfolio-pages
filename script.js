@@ -28,14 +28,25 @@
 })();
 
 /* =========================================================
-   STICKY NAV BACKGROUND ON SCROLL
+   STICKY NAV — throttled with requestAnimationFrame
    ========================================================= */
 (function stickyNav() {
   const nav = document.getElementById('nav');
-  const onScroll = () => {
+  let ticking = false;
+
+  const update = () => {
     nav.classList.toggle('scrolled', window.scrollY > 20);
+    ticking = false;
   };
-  onScroll();
+
+  const onScroll = () => {
+    if (!ticking) {
+      window.requestAnimationFrame(update);
+      ticking = true;
+    }
+  };
+
+  update();
   window.addEventListener('scroll', onScroll, { passive: true });
 })();
 
@@ -61,25 +72,27 @@
 })();
 
 /* =========================================================
-   SMOOTH SCROLL FOR ANCHOR LINKS (with sticky-nav offset)
+   SMOOTH SCROLL (respects reduced motion)
    ========================================================= */
 (function smoothAnchors() {
   const navHeight = 80;
+  const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   document.querySelectorAll('a[href^="#"]').forEach((link) => {
     link.addEventListener('click', (e) => {
       const id = link.getAttribute('href');
-      if (id.length < 2) return;
+      if (!id || id.length < 2) return;
       const target = document.querySelector(id);
       if (!target) return;
       e.preventDefault();
       const top = target.getBoundingClientRect().top + window.scrollY - navHeight;
-      window.scrollTo({ top, behavior: 'smooth' });
+      window.scrollTo({ top, behavior: prefersReduced ? 'auto' : 'smooth' });
     });
   });
 })();
 
 /* =========================================================
-   ROLE TYPEWRITER
+   ROLE TYPEWRITER (pauses when tab hidden — saves CPU)
    ========================================================= */
 (function typewriter() {
   const el = document.getElementById('roleText');
@@ -97,6 +110,7 @@
   let roleIndex = 0;
   let charIndex = roles[0].length;
   let deleting = false;
+  let timeoutId = null;
 
   const TYPE_SPEED = 55;
   const DELETE_SPEED = 32;
@@ -110,7 +124,8 @@
       if (charIndex > current.length) {
         charIndex = current.length;
         deleting = true;
-        return setTimeout(tick, HOLD_TIME);
+        timeoutId = setTimeout(tick, HOLD_TIME);
+        return;
       }
     } else {
       charIndex--;
@@ -122,15 +137,25 @@
     }
 
     el.textContent = current.slice(0, charIndex);
-    setTimeout(tick, deleting ? DELETE_SPEED : TYPE_SPEED);
+    timeoutId = setTimeout(tick, deleting ? DELETE_SPEED : TYPE_SPEED);
   }
 
   el.textContent = roles[0];
-  setTimeout(tick, HOLD_TIME);
+  timeoutId = setTimeout(tick, HOLD_TIME);
+
+  // Pause when tab is hidden — saves CPU/battery
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      clearTimeout(timeoutId);
+    } else {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(tick, 400);
+    }
+  });
 })();
 
 /* =========================================================
-   SCROLL REVEAL (IntersectionObserver)
+   SCROLL REVEAL
    ========================================================= */
 (function scrollReveal() {
   const items = document.querySelectorAll('.reveal');
@@ -155,7 +180,7 @@
 })();
 
 /* =========================================================
-   CONTACT FORM VALIDATION
+   CONTACT FORM (validation + WhatsApp)
    ========================================================= */
 (function contactForm() {
   const form = document.getElementById('contactForm');
@@ -173,14 +198,12 @@
 
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-  function validators() {
-    return {
-      name: (v) => (v.trim().length < 2 ? 'Please enter your name.' : ''),
-      email: (v) => (!emailPattern.test(v.trim()) ? 'Please enter a valid email address.' : ''),
-      subject: (v) => (v.trim().length < 3 ? 'Please add a short subject.' : ''),
-      message: (v) => (v.trim().length < 10 ? 'Message should be at least 10 characters.' : '')
-    };
-  }
+  const validators = {
+    name: (v) => (v.trim().length < 2 ? 'Veuillez entrer votre nom.' : ''),
+    email: (v) => (!emailPattern.test(v.trim()) ? 'Veuillez entrer une adresse email valide.' : ''),
+    subject: (v) => (v.trim().length < 3 ? 'Veuillez ajouter un sujet.' : ''),
+    message: (v) => (v.trim().length < 10 ? 'Le message doit contenir au moins 10 caractères.' : '')
+  };
 
   function setFieldState(key, message) {
     const { el, error } = fields[key];
@@ -188,15 +211,16 @@
     if (message) {
       wrapper.classList.add('invalid');
       error.textContent = message;
+      el.setAttribute('aria-invalid', 'true');
     } else {
       wrapper.classList.remove('invalid');
       error.textContent = '';
+      el.removeAttribute('aria-invalid');
     }
   }
 
   function validateField(key) {
-    const rule = validators()[key];
-    const message = rule(fields[key].el.value);
+    const message = validators[key](fields[key].el.value);
     setFieldState(key, message);
     return !message;
   }
@@ -210,16 +234,17 @@
     });
   });
 
-  const whatsappNumber = '212752565522'; // Remplace par ton numéro WhatsApp complet sans le signe +
+  const whatsappNumber = '212752565522';
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
 
-    const results = Object.keys(fields).map((key) => validateField(key));
-    const allValid = results.every(Boolean);
+    const allValid = Object.keys(fields)
+      .map((key) => validateField(key))
+      .every(Boolean);
 
     if (!allValid) {
-      status.textContent = 'Please fix the highlighted fields.';
+      status.textContent = 'Veuillez corriger les champs en rouge.';
       status.style.color = '#C1554A';
       return;
     }
@@ -241,7 +266,7 @@
 
     submitBtn.textContent = 'Ouverture WhatsApp…';
     submitBtn.disabled = true;
-    status.textContent = 'Préparation du message WhatsApp...';
+    status.textContent = 'Préparation du message WhatsApp…';
     status.style.color = '';
 
     window.location.href = whatsappUrl;
@@ -257,7 +282,7 @@
 })();
 
 /* =========================================================
-   BACK TO TOP + FOOTER YEAR + CV DOWNLOAD
+   MISC — year, back-to-top, CV download
    ========================================================= */
 (function misc() {
   const yearEl = document.getElementById('year');
@@ -282,6 +307,7 @@
       link.href = href;
       link.download = 'AZEDINE_RABAH_CV.pdf';
       link.target = '_blank';
+      link.rel = 'noopener';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
